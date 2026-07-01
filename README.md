@@ -65,7 +65,9 @@ gradient clipping at norm 1.0, cosine schedule, batch size 16, five epochs
 
 **Prophet covariate.** For the distillation experiment we fit a per-SKU Prophet
 model with the listed price and its two lags as regressors and feed its point
-forecast to Chronos-2 as a single future-known covariate.
+forecast to Chronos-2 as a single future-known covariate. The two price lags are
+undefined for the first two weeks, so Prophet is fit on the remaining weeks and
+its forecast is marked missing there, which Chronos-2 handles natively.
 
 **Note on the Prophet baseline.** The book's numbers (0.265 standalone, 0.568
 with Elastic Net) come from its `make_future_dataframe(periods, freq="W")`

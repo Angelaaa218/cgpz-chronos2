@@ -36,39 +36,51 @@ def _r2_wape(y, yhat):
     return float(r2_score(y, yhat)), float(np.abs(y - yhat).sum() / y.sum())
 
 
-def _fit_sku(weeks, sales, reg, train_w, us_holidays):
-    """Fit Prophet on the first ``train_w`` weeks, return yhat over all weeks."""
+def _fit_sku(weeks, sales, reg, train_w, us_holidays, skip=0):
+    """Fit Prophet on weeks ``[skip, train_w)`` and return yhat over all weeks.
+
+    The first ``skip`` weeks (whose price lags are undefined) are excluded from
+    the fit and returned as NaN, so Chronos-2 reads them as missing rather than
+    imputed. ``skip=0`` recovers the plain all-weeks fit.
+    """
     from prophet import Prophet
-    train = pd.DataFrame({"ds": weeks[:train_w], "y": sales[:train_w]})
+    train = pd.DataFrame({"ds": weeks[skip:train_w], "y": sales[skip:train_w]})
     m = Prophet(yearly_seasonality=1)
     if us_holidays:
         m.add_country_holidays(country_name="US")
     if reg is not None:
         for c in reg.columns:
             m.add_regressor(c)
-            train[c] = reg[c].to_numpy()[:train_w]
+            train[c] = reg[c].to_numpy()[skip:train_w]
     m.fit(train)
-    future = pd.DataFrame({"ds": weeks})
+    future = pd.DataFrame({"ds": weeks[skip:]})
     if reg is not None:
         for c in reg.columns:
-            future[c] = reg[c].to_numpy()
-    return m.predict(future)["yhat"].to_numpy()
+            future[c] = reg[c].to_numpy()[skip:]
+    yhat = m.predict(future)["yhat"].to_numpy()
+    return np.concatenate([np.full(skip, np.nan), yhat])
 
 
 def add_teacher_covariate(df, regressors=("price", "price-1", "price-2"),
                           train_w=TRAIN_W, use_cache=True):
-    """Append a ``prophet_yhat`` column (per-SKU Prophet forecast) to ``df``."""
+    """Append a ``prophet_yhat`` column (per-SKU Prophet forecast) to ``df``.
+
+    The two price-lag regressors are undefined for the first two weeks, so those
+    weeks are dropped from the Prophet fit and their ``prophet_yhat`` is left
+    missing (NaN); Chronos-2 reads them as missing covariates.
+    """
     if "prophet_yhat" in df.columns:
         return df
     if use_cache and CACHE.exists():
         cache = pd.read_csv(CACHE, parse_dates=["week"])
         return df.merge(cache, on=["sku", "week"], how="left", validate="one_to_one")
 
+    skip = max((int(c.rsplit("-", 1)[1]) for c in regressors if c[-1].isdigit()), default=0)
     out = []
     for sku, g in df.groupby("sku", sort=True):
         g = g.sort_values("week").reset_index(drop=True)
         yhat = _fit_sku(g["week"].to_numpy(), g["weekly_sales"].to_numpy(),
-                        g[list(regressors)], train_w, us_holidays=False)
+                        g[list(regressors)], train_w, us_holidays=False, skip=skip)
         out.append(pd.DataFrame({"sku": sku, "week": g["week"].values, "prophet_yhat": yhat}))
     cache = pd.concat(out, ignore_index=True)
     CACHE.parent.mkdir(exist_ok=True)
