@@ -84,13 +84,9 @@ its forecast is marked missing there, which Chronos-2 handles natively.
 **Note on the Prophet baseline.** The book's numbers (0.265 standalone, 0.568
 with Elastic Net) come from its `make_future_dataframe(periods, freq="W")`
 forecast dates, which are Sunday-anchored and one day off the Monday data,
-shifting Prophet's seasonal/holiday effects. This reproduces with any Prophet
-version (`fbprophet` or `prophet`) -- the figures follow from the date
-construction, not the package. Predicting at the true test dates instead gives
-0.215 / 0.565. `book_prophet_baselines` follows the book's recipe and reports
-the former; `fbprophet_baseline.py` prints both constructions side by side
-(using the original `fbprophet` package on x86 hardware), confirming that the
-0.265 vs 0.215 gap is the date artifact and not the package.
+shifting Prophet's seasonal/holiday effects. `book_prophet_baselines` in
+`cgpz/prophet_teacher.py` follows that recipe exactly and reproduces those
+numbers with the maintained `prophet` package.
 
 ## Layout
 
