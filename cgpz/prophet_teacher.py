@@ -5,7 +5,7 @@ Two distinct uses:
 * ``add_teacher_covariate`` fits a per-SKU Prophet with the listed price and
   its two lags as regressors (no holidays) and exposes Prophet's point
   forecast ``yhat`` as a future-known covariate for Chronos-2. This is the
-  distilled covariate behind Table 11.
+  distilled covariate behind Table 10.
 * ``book_prophet_baselines`` reproduces the book's own Prophet baseline
   (per-SKU Prophet with US public holidays), both standalone and as an extra
   feature fed to the decentralized Elastic Net, as reported in Table 8.

@@ -13,12 +13,14 @@ with the textbook's companion repository. Two files are shipped here:
 
 - `data/data_raw.csv` — raw weekly sales, listed price, the main-page promotion
   flag, and static product attributes.
-- `data/data_processed.csv` — the book's 45-feature engineered matrix, used by
-  the baselines.
+- `data/data_processed.csv` — the book's engineered feature matrix (98 weeks per
+  SKU, after the two lag warm-up weeks are dropped). It carries 45 predictive
+  features: every column except the identifiers `week` and `sku` and the target
+  `weekly_sales`. These form the candidate feature set for the baselines.
 
 Evaluation follows the book: first 70 weeks train, last 30 weeks test,
-out-of-sample R² and WMAPE (predictions clipped at 0). The baselines use the
-book's 68/32 split, matching the numbers in its Figure 6.1.
+out-of-sample R² and WMAPE (predictions clipped at 0). The baselines run on the
+98-week processed file with the book's 68/30 split, matching its Figure 6.1.
 
 ## Installation
 
@@ -45,6 +47,14 @@ K-means clustering: R2=0.560  WMAPE=0.763
 Chronos-2 (Small, price, zero-shot): R2=0.667  WMAPE=0.520
 ```
 
+To reproduce a whole Section 6 table end to end:
+
+```bash
+python reproduce.py --table 8    # baselines vs zero-shot Chronos-2 (Table 8)
+python reproduce.py --table 9    # covariate set x model size x cross-learning (Table 9)
+python reproduce.py --table 10   # Prophet-yhat quantile sweep, zero-shot vs fine-tuned (Table 10)
+```
+
 Chronos-2 models are scored at the validation-selected quantile and select a
 device automatically (CUDA, then Apple MPS, then CPU); pass
 `--device {cuda,mps,cpu}` to override.
@@ -56,7 +66,9 @@ requires choosing a quantile. We use a two-stage, train-only protocol: a
 validation stage (weeks 1–40 forecast weeks 41–70) selects the quantile `q*`
 that maximizes validation R²; the test stage (weeks 1–70 forecast weeks 71–100)
 is scored at `q*`. Fine-tuned runs refit the model in each stage so that `q*` is
-never chosen on data the scored model has seen.
+never chosen on data the scored model has seen. The grid searched for `q*` and
+used to score the tables is 0.05–0.95 in steps of 0.05 (19 levels, `QUANTILES`
+in `cgpz/data.py`) — narrower than the native levels the fine-tuning loss uses.
 
 **Fine-tuning.** Full-parameter fine-tuning with the quantile loss over
 Chronos-2's 21 native quantile levels: learning rate 1e-5, weight decay 0.01,
@@ -76,7 +88,9 @@ shifting Prophet's seasonal/holiday effects. This reproduces with any Prophet
 version (`fbprophet` or `prophet`) -- the figures follow from the date
 construction, not the package. Predicting at the true test dates instead gives
 0.215 / 0.565. `book_prophet_baselines` follows the book's recipe and reports
-the former; `fbprophet_baseline.py` lets you confirm the 0.265 on x86 hardware.
+the former; `fbprophet_baseline.py` prints both constructions side by side
+(using the original `fbprophet` package on x86 hardware), confirming that the
+0.265 vs 0.215 gap is the date artifact and not the package.
 
 ## Layout
 

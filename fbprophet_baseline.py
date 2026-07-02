@@ -2,13 +2,21 @@
 """Standalone reproduction of the book's Prophet baseline on the CGPZ dataset.
 
 Run on an x86-64 machine (Linux cluster or Intel Mac) where the original
-fbprophet works. Prints out-of-sample R^2 and WMAPE on the 30-week test horizon,
-matching the book's notebook 7 recipe: per-SKU Prophet with a single
-yearly-seasonality term and US public holidays, fit on the first 68 weeks of
-data_processed.csv.
+fbprophet works. Per SKU, a Prophet model (single yearly-seasonality term, US
+public holidays) is fit on the first 68 weeks of data_processed.csv, following
+notebook 7. It prints out-of-sample R^2 and WMAPE on the 30-week test horizon
+for two forecast constructions:
 
-The script prefers fbprophet (the book's package); if it is not installed it
-falls back to the maintained prophet package and says so, so you can compare.
+  book   -- the book's ``make_future_dataframe(periods, freq="W")`` horizon,
+            whose weekly dates are Sunday-anchored and one day off the Monday
+            data. This is what reproduces the book's numbers (~0.265).
+  true   -- forecasting at the true observed test dates (~0.215).
+
+The gap between the two is entirely the forecast-date construction: it appears
+with fbprophet and with the maintained prophet package alike, so the book's
+0.265 is a date artifact, not a package difference. The script prefers fbprophet
+(the book's package); if it is not installed it falls back to prophet and says
+so, so you can confirm the two give the same figures.
 
 Environment (conda, x86-64 -- works natively on a Linux cluster):
     conda create -n fbp -c conda-forge python=3.8 fbprophet=0.7.1 \
@@ -40,6 +48,11 @@ except ImportError:
 TRAIN_W = 68  # the book's split on data_processed.csv (98 weeks per SKU)
 
 
+def _scores(y, p):
+    pc = np.clip(p, 0, None)  # the paper clips point forecasts at 0
+    return r2_score(y, pc), float(np.abs(y - pc).sum() / y.sum())
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", default="data/data_processed.csv",
@@ -50,25 +63,31 @@ def main():
     sales["week"] = pd.to_datetime(sales["week"])
     sales = sales.sort_values(["sku", "week"])
 
-    y_test, y_pred = [], []
+    y_test, book_pred, true_pred = [], [], []
     for _, g in sales.groupby("sku", sort=True):
         g = g.reset_index(drop=True)
-        train = pd.DataFrame({"ds": g["week"][:TRAIN_W], "y": g["weekly_sales"][:TRAIN_W]})
+        size = len(g) - TRAIN_W
         m = Prophet(yearly_seasonality=1)
         m.add_country_holidays(country_name="US")
-        m.fit(train)
-        yhat = m.predict(pd.DataFrame({"ds": g["week"]}))["yhat"].to_numpy()
+        m.fit(pd.DataFrame({"ds": g["week"][:TRAIN_W], "y": g["weekly_sales"][:TRAIN_W]}))
+
+        # book recipe: Sunday-anchored make_future_dataframe dates
+        book = m.predict(m.make_future_dataframe(periods=size, freq="W"))["yhat"].to_numpy()
+        # true dates: forecast at the actual (Monday) test weeks
+        true = m.predict(pd.DataFrame({"ds": g["week"]}))["yhat"].to_numpy()
+
         y_test.append(g["weekly_sales"].to_numpy()[TRAIN_W:])
-        y_pred.append(yhat[TRAIN_W:])
+        book_pred.append(book[-size:])
+        true_pred.append(true[TRAIN_W:])
 
     y = np.concatenate(y_test)
-    p = np.concatenate(y_pred)
-    pc = np.clip(p, 0, None)  # the paper clips point forecasts at 0
+    book_r2, book_w = _scores(y, np.concatenate(book_pred))
+    true_r2, true_w = _scores(y, np.concatenate(true_pred))
 
-    print(f"package        = {PACKAGE}")
-    print(f"SKUs           = {sales['sku'].nunique()},  test weeks/SKU = {len(y_test[0])}")
-    print(f"R2    (raw)    = {r2_score(y, p):.4f}     WMAPE (raw)    = {np.abs(y - p).sum() / y.sum():.4f}")
-    print(f"R2    (clip0)  = {r2_score(y, pc):.4f}     WMAPE (clip0)  = {np.abs(y - pc).sum() / y.sum():.4f}")
+    print(f"package = {PACKAGE}")
+    print(f"SKUs    = {sales['sku'].nunique()},  test weeks/SKU = {len(y_test[0])}")
+    print(f"book recipe (make_future_dataframe): R2 = {book_r2:.4f}   WMAPE = {book_w:.4f}")
+    print(f"true dates                         : R2 = {true_r2:.4f}   WMAPE = {true_w:.4f}")
 
 
 if __name__ == "__main__":

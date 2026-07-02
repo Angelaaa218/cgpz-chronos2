@@ -21,21 +21,21 @@ TOTAL_W, TEST_W = 100, 30
 TRAIN_W = TOTAL_W - TEST_W                 # 70
 VAL_CTX_W = TRAIN_W - TEST_W               # 40  (validation context length)
 
-# Chronos-2's native quantile head, restricted to the swept grid 0.05..0.95.
+# Point-forecast quantile grid used to select q* and to score the tables
+# (0.05..0.95). This is narrower than the quantile levels Chronos-2 optimizes
+# internally during fine-tuning; see cgpz/chronos.py.
 QUANTILES = [round(0.05 * k, 2) for k in range(1, 20)]
 
-# The single curated covariate set used in the paper's headline runs.
-CURATED = ["feat_main_page", "price"]
 
-
-def load_cgpz() -> tuple[pd.DataFrame, list[str], list[str]]:
-    """Return ``(df, curated_cols, all_cov_cols)``.
+def load_cgpz() -> tuple[pd.DataFrame, list[str]]:
+    """Return ``(df, all_cov_cols)``.
 
     ``df`` is sorted by (sku, week) with the book's engineered features added:
     two price lags, month one-hots, a year-trend flag, and static one-hots for
     color, vendor, and functionality (book naming and reference levels).
-    ``all_cov_cols`` is the full 45-feature stack; ``curated_cols`` is
-    ``["feat_main_page", "price"]``.
+    ``all_cov_cols`` is the full 45-feature stack: every predictive column, i.e.
+    all columns except the identifiers ``week``, ``sku`` and the target
+    ``weekly_sales``. The paper's headline Chronos-2 run uses ``price`` alone.
     """
     df = pd.read_csv(DATA_RAW)
     df["week"] = pd.to_datetime(df["week"])
@@ -63,7 +63,7 @@ def load_cgpz() -> tuple[pd.DataFrame, list[str], list[str]]:
     static_cov = list(color.columns) + list(vendor.columns) + list(func.columns)
     dynamic_cov = ["price", "price-1", "price-2", "feat_main_page", "trend"] + \
         [f"month_{m}" for m in range(2, 13)]
-    return df, CURATED, dynamic_cov + static_cov
+    return df, dynamic_cov + static_cov
 
 
 def build_window(df, cov_cols, start_w, ctx_len, horizon):
