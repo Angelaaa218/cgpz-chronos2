@@ -22,9 +22,8 @@ TRAIN_W = TOTAL_W - TEST_W                 # 70
 VAL_CTX_W = TRAIN_W - TEST_W               # 40  (validation context length)
 
 # Point-forecast quantile grid used to select q* and to score the tables
-# (0.05..0.95). This is narrower than the quantile levels Chronos-2 optimizes
-# internally during fine-tuning; see cgpz/chronos.py.
-QUANTILES = [round(0.05 * k, 2) for k in range(1, 20)]
+# Matches the 21 native quantile levels used during fine-tuning.
+QUANTILES = [0.01] + [round(0.05 * k, 2) for k in range(1, 20)] + [0.99]
 
 
 def load_cgpz() -> tuple[pd.DataFrame, list[str]]:

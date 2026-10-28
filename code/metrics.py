@@ -1,8 +1,8 @@
-"""Scoring and the two-stage, train-only quantile-selection protocol.
+"""Scoring and the two-stage quantile-selection protocol.
 
 Metrics match the paper: out-of-sample ``R^2`` is the pooled
 ``sklearn.r2_score`` (global-mean baseline); ``WMAPE`` is
-``sum|y - yhat| / sum(y)``. Point forecasts are clipped at 0.
+``sum|y - yhat| / sum(y)``. Point forecasts are scored without clipping, as in the revised paper.
 """
 from __future__ import annotations
 
@@ -13,12 +13,12 @@ from .data import QUANTILES
 
 
 def score_at_q(pred_df, test_df, q):
-    """R^2 and WMAPE for one quantile column ``q`` (preds clipped at 0)."""
+    """R^2 and WMAPE for one quantile column ``q`` (unclipped predictions)."""
     col = str(q)
     m = test_df.merge(pred_df[["id", "timestamp", col]].rename(columns={col: "yhat"}),
                       on=["id", "timestamp"], how="left", validate="one_to_one")
     y = m["y_true"].to_numpy()
-    yhat = np.clip(m["yhat"].to_numpy(), 0, None)
+    yhat = m["yhat"].to_numpy()
     r2 = r2_score(y, yhat)
     wape = float(np.abs(y - yhat).sum() / y.sum())
     return r2, wape

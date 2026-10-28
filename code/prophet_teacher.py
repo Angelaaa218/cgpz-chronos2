@@ -32,7 +32,6 @@ CACHE = Path(__file__).resolve().parent.parent / "outputs" / "prophet_teacher.cs
 
 def _r2_wape(y, yhat):
     from sklearn.metrics import r2_score
-    yhat = np.clip(yhat, 0, None)
     return float(r2_score(y, yhat)), float(np.abs(y - yhat).sum() / y.sum())
 
 

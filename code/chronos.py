@@ -1,15 +1,22 @@
 """Chronos-2 forecasting on CGPZ: zero-shot and fine-tuned.
 
-A single forecast follows the two-stage, train-only protocol: a validation
+A single forecast follows the two-stage quantile-selection protocol: a validation
 stage (weeks 1-40 forecast weeks 41-70) selects the point-forecast quantile
 ``q*``; the test stage (weeks 1-70 forecast weeks 71-100) is scored at ``q*``.
 Fine-tuned runs refit the model in each stage with the recipe in ``FT``.
+Prophet inputs retain the week-70 fit during validation, as documented in README.
 """
 from __future__ import annotations
 
-import pandas as pd
+import argparse
+from pathlib import Path
 
-from .data import QUANTILES, TEST_W, TRAIN_W, VAL_CTX_W, build_window, fit_inputs
+import numpy as np
+import pandas as pd
+import torch
+
+from .data import QUANTILES, TEST_W, TRAIN_W, VAL_CTX_W, build_window, fit_inputs, load_cgpz
+from .prophet_teacher import add_teacher_covariate
 from .metrics import best_q, per_quantile_table
 
 MODELS = {"small": "autogluon/chronos-2-small", "base": "autogluon/chronos-2"}
@@ -80,3 +87,55 @@ def score_at_qstar(table, q):
     """Pull the (R2, WMAPE) row at the selected quantile from a per-quantile table."""
     row = table.loc[table["q"].round(2) == round(q, 2)].iloc[0]
     return float(row["R2"]), float(row["WMAPE"])
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument('--cov', choices=['price', 'prophet_yhat'], default='prophet_yhat')
+    ap.add_argument('--runs', choices=['both', 'zs', 'ft'], default='both')
+    ap.add_argument('--model', choices=['small', 'base'], default='small')
+    ap.add_argument('--device', default='cpu')
+    args = ap.parse_args()
+    df = load_cgpz()[0]
+    if args.cov == 'prophet_yhat':
+        df = add_teacher_covariate(df)
+    # Keep the week-70 Prophet fit fixed for validation and final testing.
+    cov = [args.cov]
+    vc, vf, vy = build_window(df, cov, 0, VAL_CTX_W, TEST_W)
+    tc, tf, ty = build_window(df, cov, 0, TRAIN_W, TEST_W)
+    runs = {'both': [('zero-shot', False), ('FT 5 ep', True)],
+            'zs': [('zero-shot', False)], 'ft': [('FT 5 ep', True)]}[args.runs]
+    output = Path(__file__).resolve().parent.parent / 'outputs'
+    output.mkdir(exist_ok=True)
+    rows = []
+    for label, ft in runs:
+        torch.manual_seed(0)
+        np.random.seed(0)
+        if ft:
+            pv = _finetune(args.model, df, cov, 0, VAL_CTX_W, args.device)
+            val = _predict(pv, vc, vf, False)
+            pt = _finetune(args.model, df, cov, 0, TRAIN_W, args.device)
+            test = _predict(pt, tc, tf, False)
+        else:
+            pipe = _pipeline(args.model, args.device)
+            val = _predict(pipe, vc, vf, False)
+            test = _predict(pipe, tc, tf, False)
+        q = best_q(val, vy)
+        tag = 'ft' if ft else 'zs'
+        test.to_csv(output / f'preds_{args.cov}_{args.model}_{tag}.csv', index=False)
+        for stage, pred, truth in [('val', val, vy), ('test', test, ty)]:
+            scores = per_quantile_table(pred, truth)
+            scores.insert(0, 'q_star', q)
+            scores.insert(0, 'stage', stage)
+            scores.insert(0, 'run', label)
+            rows.append(scores)
+        print(label, 'q* =', q)
+        print(rows[-1].loc[np.isclose(rows[-1].q, q)].to_string(index=False))
+    suffix = '' if args.cov == 'prophet_yhat' else '_price'
+    model_suffix = '' if args.model == 'small' else '_base'
+    pd.concat(rows, ignore_index=True).to_csv(
+        output / f'chronos{suffix}{model_suffix}.csv', index=False)
+
+
+if __name__ == '__main__':
+    main()
