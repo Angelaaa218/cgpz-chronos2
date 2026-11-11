@@ -25,7 +25,7 @@ def score_at_q(pred_df, test_df, q):
 
 
 def per_quantile_table(pred_df, test_df):
-    """DataFrame ``[q, R2, WMAPE]`` over every native quantile."""
+    """DataFrame ``[q, R2, WMAPE]`` over the requested evaluation grid."""
     import pandas as pd
     rows = [{"q": q, "R2": score_at_q(pred_df, test_df, q)[0],
              "WMAPE": score_at_q(pred_df, test_df, q)[1]} for q in QUANTILES]

@@ -7,7 +7,7 @@ The data file (``data_processed.csv``), the per-SKU feature set, the 68/30
 split (``np.split([68])``), the model choices, and every hyperparameter are
 taken directly from those notebooks; only the surrounding loop is reorganized so
 the baselines can be called as functions. Reproduces the per-family numbers in
-the book's Figure 6.1 (Table 8 of the paper). Metric: out-of-sample R^2 (the
+the book's Figure 6.1. Metric: out-of-sample R^2 (the
 book's metric), with WMAPE added.
 """
 from __future__ import annotations
@@ -114,7 +114,7 @@ def _kmeans():
 
 
 def table8_baselines() -> pd.DataFrame:
-    """Best baseline per family from the book's Figure 6.1, as in Table 8."""
+    """Best baseline per family from the book's Figure 6.1."""
     rows = []
     add = lambda name, yp: rows.append({"Method": name, **_score(*yp)})
     # The pooled OLS is ill-conditioned by design (the book reports R^2 = 0.114),

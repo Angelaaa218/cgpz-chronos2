@@ -1,4 +1,4 @@
-"""Section EC.4: same-covariate baseline comparisons in Table EC.5.
+"""Section EC.4: same-covariate baseline comparisons.
 
 Refit the five book baseline families on price only, Prophet forecast only,
 and the original 45 features plus the Prophet forecast. Also retain the
@@ -149,7 +149,7 @@ def main():
     for filename, feature_set, run_name in [
         ("chronos_price.csv", "price_only", "zero-shot"),
         ("chronos.csv", "yhat_only", "zero-shot"),
-        ("chronos.csv", "yhat_only", "FT 5 ep"),
+        ("chronos.csv", "yhat_only", "fine-tuned (15 steps)"),
     ]:
         path = ROOT / "outputs" / filename
         if not path.exists():

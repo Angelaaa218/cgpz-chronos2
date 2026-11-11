@@ -1,0 +1,25 @@
+feature_set,n_feat,Method,R2,WMAPE
+full45,45,Decentralized Elastic Net (traditional),0.5846685843977957,0.7209544296606347
+full45,45,Centralized OLS (traditional),0.11424869338144872,1.129789093619948
+full45,45,Decentralized Random Forest (tree-based),0.5588174155973025,0.5798420883828096
+full45,45,Centralized Random Forest (tree-based),0.27247586075164676,0.7258555816077324
+full45,45,K-means clustering,0.5599839762024705,0.7634569675012371
+price_only,1,Decentralized Elastic Net (traditional),0.5704908816272952,0.6477511097908715
+price_only,1,Centralized OLS (traditional),0.020891276848079898,1.0482124253252063
+price_only,1,Decentralized Random Forest (tree-based),0.5992587810997033,0.5446553927296053
+price_only,1,Centralized Random Forest (tree-based),0.20161082191913016,0.7954866343311373
+price_only,1,K-means clustering,0.5603639357937724,0.6666883310407264
+full45+yhat,46,Decentralized Elastic Net (traditional),0.5844700662272497,0.8072661516440087
+full45+yhat,46,Centralized OLS (traditional),0.6108426774409252,0.8082610622715694
+full45+yhat,46,Decentralized Random Forest (tree-based),0.6692811333508963,0.5255808712036095
+full45+yhat,46,Centralized Random Forest (tree-based),0.6619438363717043,0.5450398784532031
+full45+yhat,46,K-means clustering,0.5243893998291054,0.8344861950242883
+yhat_only,1,Decentralized Elastic Net (traditional),0.611463990027352,0.7891085976965485
+yhat_only,1,Centralized OLS (traditional),0.6113343076807278,0.7892953859279961
+yhat_only,1,Decentralized Random Forest (tree-based),0.739664223053749,0.5311972938830859
+yhat_only,1,Centralized Random Forest (tree-based),0.7059371238638645,0.5435848758602201
+yhat_only,1,K-means clustering,0.6113632681144403,0.7892006853867192
+reference,1,Prophet yhat standalone,0.6113186560439905,0.7893569443683894
+price_only,1,Chronos-2 zero-shot,0.6666028907603594,0.5202030763677676
+yhat_only,1,Chronos-2 zero-shot,0.6468753439883422,0.4988325259441167
+yhat_only,1,Chronos-2 fine-tuned (15 steps),0.7126327209146761,0.5052140629087423

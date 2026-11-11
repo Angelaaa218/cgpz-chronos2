@@ -1,88 +1,80 @@
 # Chronos-2 on the CGPZ retail dataset
 
-Code for the public-dataset experiments in *A Bitter Lesson for Retail Demand Forecasting*. It evaluates Chronos-2 with price or a distilled Prophet forecast as its covariate, in zero-shot and fine-tuned settings, against the baselines from Cohen et al.'s textbook. It also includes the same-covariate comparisons in Section EC.4.
-
-## Dataset
-
-The CGPZ dataset contains 100 weeks of weekly sales for 44 tech-gadget SKUs. Two files are included:
-
-- `data/data_raw.csv`: weekly sales, listed price, the main-page promotion flag, and product attributes.
-- `data/data_processed.csv`: the book's 45-feature matrix, with 98 weeks per SKU after dropping the two price-lag warm-up weeks. Features exclude the identifiers `week` and `sku` and the target `weekly_sales`.
-
-Evaluation uses the first 70 weeks for training and the last 30 weeks for testing. Baselines use the corresponding 68/30 split of the processed data. We report out-of-sample R² and WMAPE using predictions without clipping at zero.
+Code, data, and saved outputs for the public-dataset experiments in *A Bitter Lesson for Retail Demand Forecasting*. The experiments compare Chronos-2 with the book's baselines, evaluate price and Prophet-derived covariates, and fine-tune Chronos-2 Small using the per-SKU Prophet forecast. Section EC.4 includes the same-covariate baseline comparisons and the single-observation sensitivity analysis.
 
 ## Installation
+
+The Chronos experiments use an Apple M4 Pro with the MPS backend, macOS 15.7.4, and Python 3.13.5. `requirements.txt` pins the package versions used in this environment.
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Chronos-2 supports CPU, CUDA, and Apple MPS. Model weights download from Hugging Face on first use. Prophet uses CmdStanPy and caches the fitted covariate in `outputs/prophet_teacher.csv`.
+Model weights download from Hugging Face on first use. Run the commands below from this folder.
 
-## Running the experiments
+## Run the experiments
 
-Run commands from this folder. To list models, evaluate one model, or evaluate all models:
+List available models or evaluate one model:
 
 ```bash
 python reproduce.py compare --list
-python reproduce.py compare --model "Chronos-2 (Small, price, zero-shot)"
-python reproduce.py compare
+python reproduce.py compare --model "Chronos-2 (Small, price, zero-shot)" --device mps
 ```
 
-Each model reports one test R² and WMAPE at its validation-selected quantile. The `compare` command selects CUDA, then MPS, then CPU according to availability. Use `--device cpu`, `--device cuda`, or `--device mps` to choose explicitly.
-
-To run a complete comparison:
+Run the paper's comparisons:
 
 ```bash
-python reproduce.py compare --table 8    # headline model comparison
-python reproduce.py compare --table 9    # covariates, model size, and cross-learning
-python reproduce.py compare --table 10   # Prophet-covariate quantile comparison
+python reproduce.py compare --table headline --device mps
+python reproduce.py compare --table covariates --device mps
+python reproduce.py compare --table prophet --device mps
 ```
 
-The numbers 8, 9, and 10 are retained command identifiers from the original code, not table numbers in the revised manuscript.
-
-To generate saved Chronos forecasts and then run Section EC.4:
+Generate Chronos scores and predictions:
 
 ```bash
-python reproduce.py chronos --cov price --runs zs --device cpu
-python reproduce.py chronos --cov prophet_yhat --runs both --device cpu
+python reproduce.py chronos --cov price --runs zs --device mps
+python reproduce.py chronos --cov prophet_yhat --runs both --device mps
+```
+
+Run the Section EC.4 comparisons and sensitivity analysis:
+
+```bash
 python reproduce.py ec4
 python reproduce.py sensitivity
 ```
 
-These commands write to `outputs/` and replace existing result files. To use the included Chronos results, skip the first two commands. The `ec4` command refits the baselines with the same covariates as Chronos-2. The `sensitivity` command compares results with and without the SKU 25 demand spike on 9 July 2018, using saved Chronos predictions.
+The required saved Chronos outputs and Prophet covariate are included, so the last two commands can run without regenerating the forecasts. Commands that save results write to `outputs/` and replace the corresponding files. The code also accepts `--device cuda` or `--device cpu`; omitting the device for `compare` selects an available backend automatically.
 
-## Method
+## Data and method
 
-**Quantile selection.** Forecast weeks 41–70 from weeks 1–40 and select the quantile that maximizes validation R². Forecast test weeks 71–100 from weeks 1–70 using this selected quantile. The search grid in `code/data.py` contains 21 levels: 0.01, 0.05–0.95 in steps of 0.05, and 0.99. The Prophet covariate uses the fixed fit described below.
+**Data.** CGPZ contains 100 weeks of sales for 44 tech-gadget SKUs. `data/data_raw.csv` contains the original observations; `data/data_processed.csv` contains the book's 45 engineered features and 98 weeks per SKU after the two price-lag warm-up weeks. Chronos uses the first 70 weeks for training and the final 30 weeks for testing. The baselines use the corresponding 68/30 split of the processed data. Predictions are scored using out-of-sample R² and WMAPE without clipping at zero.
 
-**Fine-tuning.** Full-parameter fine-tuning uses quantile loss, learning rate 1e-5, weight decay 0.01, gradient clipping at norm 1.0, cosine learning-rate decay, batch size 16, and no warmup. We fine-tune for 15 optimization steps. Validation and test models are fine-tuned separately from the public checkpoint. Settings are defined in `code/chronos.py` under `FT`.
+**Quantile selection.** Forecast weeks 41–70 from weeks 1–40 and select the quantile that maximizes validation R². Forecast weeks 71–100 from weeks 1–70 using that quantile. The evaluation grid contains 21 levels: 0.01, 0.05–0.95 in steps of 0.05, and 0.99, matching Chronos-2 Base's native grid. Chronos-2 Small has 13 native levels; its pipeline interpolates the additional requested levels. The included score files contain the 19 levels from 0.05 to 0.95.
 
-**Prophet covariate.** We fit a separate Prophet model for each SKU using yearly seasonality, current price, and two lagged prices. Its point forecast becomes the single Chronos-2 covariate. Prophet fits weeks 3–70, with missing covariate values for weeks 1–2 because the price lags are unavailable. Fitting only through week 40 was unstable in our diagnostic run and produced negative total predicted demand over validation weeks 41–70. We therefore retain the week-70 Prophet fit for both validation and testing. No test sales enter fitting or quantile selection, but validation sales enter the Prophet fit, so validation is not fully held out for the combined pipeline.
+**Fine-tuning.** Full-parameter fine-tuning uses quantile loss, learning rate 1e-5, weight decay 0.01, gradient clipping at norm 1.0, cosine learning-rate decay, batch size 16, no warmup, and 15 optimization steps. With one target and one covariate, each step samples eight SKU windows with replacement: 15 steps are approximately 2.73 nominal epochs, counting one sampled window per SKU as one epoch. Validation and test models are fine-tuned separately from the public checkpoint. The `chronos` command initializes PyTorch and NumPy with seed 0 for each run; the Trainer uses seed 42. Settings are defined in `code/chronos.py` under `FT`.
 
-**Book's Prophet baseline.** The book uses Sunday forecast dates, one day before the Monday observations. `book_prophet_baselines` in `code/prophet_teacher.py` preserves that recipe. The distilled Prophet covariate instead uses the actual observation dates.
+**Prophet covariate.** A separate Prophet model is fitted for each SKU using yearly seasonality, current price, and two lagged prices. Its full forecast is the single Chronos covariate. Prophet fits weeks 3–70; the first two covariate values are missing because price lags are unavailable. The same fit is retained for validation and testing because the shorter week-40 fit yielded unstable forecasts. Validation is therefore not fully held out for the combined pipeline; test sales are excluded from fitting and quantile selection. The saved covariate is `outputs/prophet_teacher.csv`.
 
-**Saved results.** The included paper results used the earlier 19-level quantile grid. They have not been regenerated with the expanded grid. The CPU verification run selected 0.60 for fine-tuning (R² 0.692, WMAPE 0.545), while the saved paper run selected 0.55 (R² 0.713, WMAPE 0.505). Exact reproduction of that fine-tuned result remains unresolved.
-
-## Code layout
+## Files
 
 ```text
 reproduce.py                 Command-line entry point
+requirements.txt             Tested package versions
 code/
   data.py                    Data loading, windows, and quantile grid
   metrics.py                 R², WMAPE, and quantile selection
-  chronos.py                 Chronos inference, fine-tuning, and saved forecasts
+  chronos.py                 Chronos inference and fine-tuning
   prophet_teacher.py         Prophet covariate and book baseline
   baselines.py               Classical forecasting baselines
   comparisons.py             Model and covariate comparisons
   ec4_prophet_featuresets.py  Section EC.4 baseline comparisons
   ec4_spike_sensitivity.py    Single-observation sensitivity analysis
 data/                        Raw and processed datasets
-outputs/                     Saved scores and predictions
+outputs/                     Paper scores, predictions, and Prophet covariate
 ```
 
 ## Data provenance and citation
 
-The data and baseline recipes come from the companion materials of Cohen, Gras, Pentecoste, and Zhang, *Demand Prediction in Retail: A Practical Guide to Leverage Data and Predictive Analytics* (Springer). The baseline implementations follow notebooks 3–5, and the book's Prophet baseline follows notebook 7.
+The data and baseline recipes come from the [companion materials](https://github.com/demand-prediction-guide/public) for Cohen, Gras, Pentecoste, and Zhang, *Demand Prediction in Retail: A Practical Guide to Leverage Data and Predictive Analytics* (Springer). The baseline implementations follow notebooks 3–5; the book's Prophet baseline follows notebook 7.
 
 The included data remain subject to the original source's terms. If you use this code, please cite the textbook and *A Bitter Lesson for Retail Demand Forecasting*.

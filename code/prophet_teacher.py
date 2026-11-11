@@ -5,10 +5,10 @@ Two distinct uses:
 * ``add_teacher_covariate`` fits a per-SKU Prophet with the listed price and
   its two lags as regressors (no holidays) and exposes Prophet's point
   forecast ``yhat`` as a future-known covariate for Chronos-2. This is the
-  distilled covariate behind Table 10.
+  distilled covariate used in the public-dataset fine-tuning experiment.
 * ``book_prophet_baselines`` reproduces the book's own Prophet baseline
   (per-SKU Prophet with US public holidays), both standalone and as an extra
-  feature fed to the decentralized Elastic Net, as reported in Table 8.
+  feature fed to the decentralized Elastic Net in the headline comparison.
 
 Prophet's own logging is silenced so the reproduction output stays readable.
 """
@@ -109,12 +109,8 @@ def book_prophet_baselines(train_w=68):
     month dummies, exactly as in the notebook. R^2 is on raw predictions, the
     book's metric.
 
-    The ``make_future_dataframe`` path is what yields the book's numbers (0.265
-    standalone, 0.568 with Elastic Net): it generates Sunday-anchored forecast
-    dates one day off the Monday data, shifting Prophet's seasonal/holiday
-    effects. This reproduces with any Prophet version, so the figures come from
-    the date construction, not the package. (Predicting at the true test dates
-    instead gives 0.215 / 0.565.)
+    The book's ``make_future_dataframe`` uses Sunday-anchored forecast dates;
+    the observations are Monday-anchored. We preserve the book's date recipe.
     """
     from prophet import Prophet
     from sklearn.linear_model import ElasticNet

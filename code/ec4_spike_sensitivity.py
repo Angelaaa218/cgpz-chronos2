@@ -25,7 +25,7 @@ def main():
         test['random_forest'] = model.predict(group[['prophet_yhat']].iloc[68:])
         rows.append(test)
     results = pd.read_csv(ROOT / 'outputs/chronos.csv')
-    selected = results[(results.run == 'FT 5 ep') & (results.stage == 'test')
+    selected = results[(results.run == 'fine-tuned (15 steps)') & (results.stage == 'test')
                        & np.isclose(results.q, results.q_star)]
     assert len(selected) == 1
     q = str(float(selected.iloc[0].q))

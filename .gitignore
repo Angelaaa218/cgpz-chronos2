@@ -1,4 +1,10 @@
 __pycache__/
 *.pyc
 outputs/*.csv
+!outputs/chronos.csv
+!outputs/chronos_price.csv
+!outputs/ec4_prophet_featuresets.csv
+!outputs/ec4_spike_sensitivity.csv
+!outputs/preds_prophet_yhat_small_ft.csv
+!outputs/prophet_teacher.csv
 .DS_Store

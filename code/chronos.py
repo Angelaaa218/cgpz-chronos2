@@ -103,8 +103,8 @@ def main():
     cov = [args.cov]
     vc, vf, vy = build_window(df, cov, 0, VAL_CTX_W, TEST_W)
     tc, tf, ty = build_window(df, cov, 0, TRAIN_W, TEST_W)
-    runs = {'both': [('zero-shot', False), ('FT 5 ep', True)],
-            'zs': [('zero-shot', False)], 'ft': [('FT 5 ep', True)]}[args.runs]
+    runs = {'both': [('zero-shot', False), ('fine-tuned (15 steps)', True)],
+            'zs': [('zero-shot', False)], 'ft': [('fine-tuned (15 steps)', True)]}[args.runs]
     output = Path(__file__).resolve().parent.parent / 'outputs'
     output.mkdir(exist_ok=True)
     rows = []

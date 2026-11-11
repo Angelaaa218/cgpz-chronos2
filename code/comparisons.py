@@ -2,13 +2,13 @@
 
     python reproduce.py compare --list                                  # show model names
     python reproduce.py compare --model "Chronos-2 (Small, price, zero-shot)"
-    python reproduce.py                                         # every model
-    python reproduce.py compare --table 8                               # a full paper table (8, 9, 10)
+    python reproduce.py compare                                        # every model
+    python reproduce.py compare --table headline                        # headline comparison
 
 Each model reports a single (R^2, WMAPE) on the 30-week test horizon. Chronos-2
-models are scored at the validation-selected quantile. ``--table`` reproduces a
-whole Section 6 table: Table 8 (baselines), Table 9 (covariate/size/CL grid),
-or Table 10 (Prophet-yhat quantile sweep, zero-shot vs fine-tuned). The device
+models are scored at the validation-selected quantile. ``--table`` runs the
+headline comparison, covariate/size/cross-learning comparison, or Prophet
+quantile comparison (zero-shot vs fine-tuned). The device
 auto-detects CUDA, then Apple MPS, then CPU; override with --device.
 """
 import argparse
@@ -83,8 +83,8 @@ def _fmt(r2, w):
 
 
 def table8():
-    """Table 8: headline zero-shot Chronos-2 (price) vs the book's baselines."""
-    print("Table 8  --  zero-shot Chronos-2 (price) vs book baselines")
+    """Headline zero-shot Chronos-2 (price) vs the book's baselines."""
+    print("Headline comparison: zero-shot Chronos-2 (price) vs book baselines")
     r2, w = _chronos(["price"], False, "small")
     print(f"  {'Chronos-2 (Small, price, zero-shot)':44s} {_fmt(r2, w)}")
     for name, (r2, w) in {**_baseline_scores(), **_prophet_scores()}.items():
@@ -92,13 +92,13 @@ def table8():
 
 
 def table9():
-    """Table 9: zero-shot R2/WMAPE by covariate set, model size, and CL flag."""
+    """Zero-shot R2/WMAPE by covariate set, model size, and CL flag."""
     all_cov = load_cgpz()[1]
     cov_sets = [("None (univariate)", [], True),
                 ("price (future-known)", ["price"], True),
                 ("price (history only)", ["price"], False),
                 ("All 45 features", all_cov, True)]
-    print("Table 9  --  zero-shot R2/WMAPE by covariate set (q* chosen per column)")
+    print("Covariate comparison: zero-shot R2/WMAPE (q* chosen per column)")
     header = f"  {'Covariate set':22s}"
     for model in ("Small", "Base"):
         for cl in ("CLoff", "CLon"):
@@ -116,8 +116,8 @@ def table9():
 
 
 def table10():
-    """Table 10: Prophet-yhat covariate, full quantile sweep, zero-shot vs fine-tuned."""
-    print("Table 10  --  Prophet-yhat covariate: R2/WMAPE over the quantile grid")
+    """Prophet-yhat covariate, full quantile sweep, zero-shot vs fine-tuned."""
+    print("Prophet covariate: R2/WMAPE over the quantile grid")
     df = _df_yhat()
     zs, zq = chronos.forecast(df, ["prophet_yhat"], model="small", device=_DEVICE, finetune=False)
     ft, fq = chronos.forecast(df, ["prophet_yhat"], model="small", device=_DEVICE, finetune=True)
@@ -131,7 +131,8 @@ def table10():
     print(f"  Prophet standalone: {_fmt(r2, w)}    (* = validation-selected q*)")
 
 
-_TABLES = {"8": table8, "9": table9, "10": table10}
+_TABLES = {"headline": table8, "covariates": table9, "prophet": table10,
+           "8": table8, "9": table9, "10": table10}
 
 
 def main():
@@ -139,8 +140,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--model", default=None, help="model name (default: run all)")
-    ap.add_argument("--table", default=None, choices=["8", "9", "10"],
-                    help="reproduce a full paper table (8, 9, or 10)")
+    ap.add_argument("--table", default=None, choices=list(_TABLES),
+                    help="comparison to run: headline, covariates, or prophet")
     ap.add_argument("--list", action="store_true", help="list model names and exit")
     ap.add_argument("--device", default="auto", help="auto | cuda | mps | cpu")
     args = ap.parse_args()

@@ -22,7 +22,7 @@ TRAIN_W = TOTAL_W - TEST_W                 # 70
 VAL_CTX_W = TRAIN_W - TEST_W               # 40  (validation context length)
 
 # Point-forecast quantile grid used to select q* and to score the tables
-# Matches the 21 native quantile levels used during fine-tuning.
+# Matches Chronos-2 Base's native grid; Small interpolates additional levels.
 QUANTILES = [0.01] + [round(0.05 * k, 2) for k in range(1, 20)] + [0.99]
 
 
